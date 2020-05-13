@@ -1,7 +1,7 @@
-clusterCloseMutations <- function(eventDataFrame, relevantColumns, gap)
+clusterCloseMutations <- function(eventDataFrame, identityColumns, gap)
 {
-  events <- unique(sapply(1:nrow(eventDataFrame),function(i){paste(eventDataFrame[i,relevantColumns[relevantColumns!="pos"]], collapse="_")}))
-  CoarseGrainedTable <- foreach (event = events, .combine = rbind, .init=data.frame(),.errorhandling = c("stop", "remove", "pass")[1], .inorder=FALSE) %dopar%
+  events <- unique(sapply(1:nrow(eventDataFrame),function(i){paste(eventDataFrame[i,identityColumns[identityColumns!="pos"]], collapse="_")}))
+  coarseGrainedTable <- foreach (event = events, .combine = rbind, .init=data.frame(),.errorhandling = c("stop", "remove", "pass")[1], .inorder=FALSE) %dopar%
   {
     eventDataFrame_sub <- eventDataFrame[which(events==event),]
     if (nrow(eventDataFrame_sub)<2)
@@ -17,15 +17,17 @@ clusterCloseMutations <- function(eventDataFrame, relevantColumns, gap)
       return(eventDataFrame_sub)
     }
   }
-  return(CoarseGrainedTable)
+  return(coarseGrainedTable)
 }
 
 
 addMutIDtoTableAndGetMappingMutIDtoMut <- function(eventDataFrame, identityColumns)
 {
   mapMutID <- unique(eventDataFrame[,identityColumns])
+  
   rownames(mapMutID) <- 1:nrow(mapMutID)
   eventDataFrame$mutID <- 0
+  
   for (i in 1:nrow(mapMutID))
   {
     Ind <- sapply(1:nrow(eventDataFrame),function(j){all(mapMutID[i,] == eventDataFrame[j, identityColumns])})
@@ -39,18 +41,18 @@ addMutIDtoTableAndGetMappingMutIDtoMut <- function(eventDataFrame, identityColum
 #' @param eventDataFrame Table of mutations in the dataframe format
 #' @param identityColumns The columns that identify a event. All events with the same values in the
 #'   identyColumns will be grouped together.
-#' @param sampleColumn The column that contains the sample identifiers.
+#' @param samples The column that contains the sample identifiers.
 #'
 #' @export
-eventDataFrameToMatrix <- function(eventDataFrame, identityColumns, sampleColumn=NULL)
+eventDataFrameToMatrix <- function(pairs, eventDataFrame, identityColumns, samples=NULL)
 {
   eventDataFrame <- addMutIDtoTableAndGetMappingMutIDtoMut(eventDataFrame, identityColumns)
-  if (is.null(sampleColumn))
+  if (is.null(samples))
   {
-    sampleColumn <- unique(eventDataFrame$SampleID)
+    samples <- unique(c(pairs[, 1], pair[, 2]))
   }
-  eventMatrix <- as.matrix(matrix(0, nrow = length(sampleColumn), ncol=length(unique(eventDataFrame$mutID))))
-  rownames(eventMatrix) <- sampleColumn
+  eventMatrix <- as.matrix(matrix(0, nrow = length(samples), ncol=length(unique(eventDataFrame$mutID))))
+  rownames(eventMatrix) <- samples
   colnames(eventMatrix) <- unique(eventDataFrame$mutID)
   
   for (i in 1:nrow(eventDataFrame)) 
@@ -95,17 +97,12 @@ scoreClonality <- function(events1, events2, eventExpectation1, eventExpectation
 #' @return pairs with an added column scores containing the clonality scores.
 #'
 #' @export
-computeClonalityScores <- function(pairs, eventMatrix, scoreFun=scoreClonality)
+computeClonalityScores <- function(pairs, eventMatrix, eventExpectation, scoreFun=scoreClonality)
 {
-  eventExpectation <- makeEventExpectation(eventMatrix)
   clonalityScores <- foreach(i = 1:nrow(pairs), .combine = rbind, .inorder=TRUE, .init=data.frame()) %do%
   {
-    output <- scoreFun(which(eventMatrix[pairs[i,1],]==1), which(eventMatrix[pairs[i,2],]==1), eventExpectation[pairs[i,1]], eventExpectation[pairs[i,2]]) 
-    cbind(pairs[i,],output)
-  }  
-  referenceScores <- testClonalityScores(pairs, eventMatrix, eventExpectation, scoreFun=scoreClonalityn) 
-  clonalityScores$p.value <- sapply(clonalityScores$score, function(s) {mean(s <= c(referenceScores$score,s))} )
-  
+    output <- scoreFun(which(eventMatrix[pairs[i, 1], ] == 1), which(eventMatrix[pairs[i, 2], ] == 1), eventExpectation[pairs[i, 1], ], eventExpectation[pairs[i, 2], ]) 
+  }
   return(clonalityScores)
 }    
 
@@ -121,16 +118,35 @@ computeClonalityScores <- function(pairs, eventMatrix, scoreFun=scoreClonality)
 #' @return pairs with an added column p containing p-values from the randomization test.
 #'
 #' @export
-testClonalityScores  <- function(pairs, eventMatrix, eventExpectation, scoreFun=scoreClonalityn) 
+testClonalityScores  <- function(pairs, eventMatrix, eventExpectation, scoreFun=scoreClonality) 
 {
   if (is.null(pairs$patient))
   {
     pairs$patient <- 1:nrow(pairs)
   }
-  refPairs <- expand.grid(list(Sample1 = unique(pairs[[1]]), Sample2 = unique(pairs[[2]])), stringsAsFactors = FALSE)
+  refPairs <- expand.grid(list(Sample1=unique(pairs[[1]]), Sample2=unique(pairs[[2]])), stringsAsFactors = FALSE)
   refPairs <- refPairs[which(patients[refPairs$Sample1,1] != patients[refPairs$Sample2,1]),]
-  return(ClonalityPairs(refPairs, eventMatrix, eventExpectation) )
+  return(computeClonalityScores(refPairs, eventMatrix, eventExpectation, scoreFun=scoreClonality) )
 }      
 
 
-
+#' Compute clonality score and p-values of paired samples.
+#'
+#' @param eventDataFrame table of mutations in the dataframe format
+#' @param pairs A dataframe of sample pairs with sample identifiers in columns sample1 and sample2.
+#'   Column Patient is optional. If it is not available it is assumed all pairs are from different
+#'   patients.
+#' @param identityColumns relevant columns
+#' @param samples samples to analyse
+#' @return pairs with extra columns scorei, number of shared breaks and p-value
+#'
+#' @export
+clonality <- function(pairs, eventDataFrame, identityColumns, samples)
+{
+  eventMatrix <- eventDataFrameToMatrix(pairs, eventDataFrame, identityColumns, samples)
+  eventExpectation <- makeEventExpectation(eventMatrix)
+  referenceScores <- testClonalityScores(pairs, eventMatrix, eventExpectation, scoreFun=scoreClonality) 
+  clonalityScores <- computeClonalityScores(pairs, eventMatrix, eventExpectation, scoreFun=scoreClonality)
+  clonalityScores$p.value <- sapply(clonalityScores$score, function(s) {mean(s <= c(referenceScores$score,s))} )
+  return(clonalityScores)
+}
