@@ -95,8 +95,9 @@ scoreClonality <- function(events1, events2, eventExpectation1, eventExpectation
 #' @return pairs with an added column scores containing the clonality scores.
 #'
 #' @export
-computeClonalityScores <- function(pairs, eventMatrix, eventExpectation, scoreFun=scoreClonality)
+computeClonalityScores <- function(pairs, eventMatrix, scoreFun=scoreClonality)
 {
+  eventExpectation <- makeEventExpectation(eventMatrix)
   clonalityScores <- foreach(i = 1:nrow(pairs), .combine = rbind, .inorder=TRUE, .init=data.frame()) %do%
   {
     output <- scoreFun(which(eventMatrix[pairs[i,1],]==1), which(eventMatrix[pairs[i,2],]==1), eventExpectation[pairs[i,1]], eventExpectation[pairs[i,2]]) 
