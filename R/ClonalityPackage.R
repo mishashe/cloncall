@@ -1,4 +1,11 @@
-clusterCloseMutations <- function(eventDataFrame, identityColumns, gap)
+#' Cluster mutations within ditanceTolerance
+#'
+#' @param eventDataFrame Table of mutations in the dataframe format
+#' @param identityColumns The columns that identify a event. All events with the same values in the
+#'   identyColumns will be grouped together.
+#' @param ditanceTolerance Distance tolerance
+#' @export
+clusterCloseMutations <- function(eventDataFrame, identityColumns, ditanceTolerance)
 {
   events <- unique(sapply(1:nrow(eventDataFrame),function(i){paste(eventDataFrame[i,identityColumns[identityColumns!="pos"]], collapse="_")}))
   coarseGrainedTable <- foreach (event = events, .combine = rbind, .init=data.frame(),.errorhandling = c("stop", "remove", "pass")[1], .inorder=FALSE) %dopar%
@@ -20,7 +27,12 @@ clusterCloseMutations <- function(eventDataFrame, identityColumns, gap)
   return(coarseGrainedTable)
 }
 
-
+#' Adds mutation IDs to the table of mutations using only identityColumns
+#'
+#' @param eventDataFrame Table of mutations in the dataframe format
+#' @param identityColumns The columns that identify a event. All events with the same values in the
+#'   identyColumns will be grouped together.
+#' @export
 addMutIDtoTableAndGetMappingMutIDtoMut <- function(eventDataFrame, identityColumns)
 {
   mapMutID <- unique(eventDataFrame[,identityColumns])
