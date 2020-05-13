@@ -150,11 +150,19 @@ testClonalityScores  <- function(pairs, eventMatrix, eventExpectation, scoreFun=
 #'   patients.
 #' @param identityColumns relevant columns
 #' @param samples samples to analyse
+#' @param ditanceTolerance Distance tolerance to cluster mutations
 #' @return pairs with extra columns scorei, number of shared breaks and p-value
 #'
 #' @export
-clonality <- function(pairs, eventDataFrame, identityColumns, samples)
+clonality <- function(pairs, eventDataFrame, identityColumns, samples, ditanceTolerance=NULL)
 {
+  if (!is.null(ditanceTolerance) )
+  {
+    if (ditanceTolerance > 0)
+    {
+      eventDataFrame <- clusterCloseMutations(eventDataFrame, identityColumns, ditanceTolerance)
+    }
+  }
   eventMatrix <- eventDataFrameToMatrix(pairs, eventDataFrame, identityColumns, samples)
   eventExpectation <- makeEventExpectation(eventMatrix)
   referenceScores <- testClonalityScores(pairs, eventMatrix, eventExpectation, scoreFun=scoreClonality) 
