@@ -113,7 +113,7 @@ computeClonalityScores <- function(pairs, eventMatrix, eventExpectation, scoreFu
 {
   clonalityScores <- foreach(i = 1:nrow(pairs), .combine = rbind, .inorder=TRUE, .init=data.frame()) %do%
   {
-    scoreFun(which(eventMatrix[pairs[i, 1], ] == 1), which(eventMatrix[pairs[i, 2], ] == 1), eventExpectation[pairs[i, 1], ], eventExpectation[pairs[i, 2], ]) 
+    cbind(pairs[i, ], scoreFun(which(eventMatrix[pairs[i, 1], ] == 1), which(eventMatrix[pairs[i, 2], ] == 1), eventExpectation[pairs[i, 1], ], eventExpectation[pairs[i, 2], ]) )
   }
   return(clonalityScores)
 }    
@@ -132,7 +132,7 @@ computeSharedMutations <- function(pairs, eventDataFrame, identityColumns)
 {
   clonalityScores <- foreach(i = 1:nrow(pairs), .combine = rbind, .inorder=TRUE, .init=data.frame()) %do%
   {
-    merge(eventDataFrame[eventDataFrame$SampleID== pairs[i, 1], identityColumns], eventDataFrame[eventDataFrame$SampleID== pairs[i, 2], identityColumns])
+    data <- merge(eventDataFrame[eventDataFrame$SampleID== pairs[i, 1], ], eventDataFrame[eventDataFrame$SampleID== pairs[i, 2], ], by = identityColumns)
   }
   return(clonalityScores)
 }    
@@ -181,6 +181,7 @@ clonality <- function(pairs, eventDataFrame, identityColumns, samples, ditanceTo
     if (ditanceTolerance > 0)
     {
       eventDataFrame <- clusterCloseMutations(eventDataFrame, identityColumns, ditanceTolerance)
+      identityColumns[identityColumns=="pos"] <- "cluster"
     }
   }
   eventMatrix <- eventDataFrameToMatrix(pairs, eventDataFrame, identityColumns, samples)
