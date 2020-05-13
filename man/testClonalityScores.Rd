@@ -9,7 +9,7 @@ testClonalityScores(
   pairs,
   eventMatrix,
   eventExpectation,
-  scoreFun = scoreClonalityn
+  scoreFun = scoreClonality
 )
 }
 \arguments{
