@@ -113,10 +113,30 @@ computeClonalityScores <- function(pairs, eventMatrix, eventExpectation, scoreFu
 {
   clonalityScores <- foreach(i = 1:nrow(pairs), .combine = rbind, .inorder=TRUE, .init=data.frame()) %do%
   {
-    output <- scoreFun(which(eventMatrix[pairs[i, 1], ] == 1), which(eventMatrix[pairs[i, 2], ] == 1), eventExpectation[pairs[i, 1], ], eventExpectation[pairs[i, 2], ]) 
+    scoreFun(which(eventMatrix[pairs[i, 1], ] == 1), which(eventMatrix[pairs[i, 2], ] == 1), eventExpectation[pairs[i, 1], ], eventExpectation[pairs[i, 2], ]) 
   }
   return(clonalityScores)
 }    
+
+
+#'  Compute table of shared mutations
+#' 
+#' @param pairs A dataframe of sample pairs with sample identifiers in columns sample1 and sample2.
+#' @param eventMatrix A binary matrix indicating events (columns) in samples (rows).
+#' @param eventExpection A matrix indicating the expectation of events (columns) in samples (rows).
+#' @param scorefun The function used to score a pair of samples.
+#' @return pairs with an added column scores containing the clonality scores.
+#'
+#' @export
+computeSharedMutations <- function(pairs, eventDataFrame, identityColumns)
+{
+  clonalityScores <- foreach(i = 1:nrow(pairs), .combine = rbind, .inorder=TRUE, .init=data.frame()) %do%
+  {
+    merge(eventDataFrame[eventDataFrame$SampleID== pairs[i, 1], identityColumns], eventDataFrame[eventDataFrame$SampleID== pairs[i, 2], identityColumns])
+  }
+  return(clonalityScores)
+}    
+
 
 #' Generate a reference distribution by computing the score for all random pairs from different
 #' patients and calculate p-value.
