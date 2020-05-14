@@ -33,12 +33,13 @@ clusterCloseMutations <- function(eventDataFrame, identityColumns, ditanceTolera
 #' @param identityColumns The columns that identify a event. All events with the same values in the
 #'   identyColumns will be grouped together.
 #' @export
-addMutIDtoTableAndGetMappingMutIDtoMut <- function(eventDataFrame, identityColumns)
+addMutIDtoTableAndGetMappingMutIDtoMut <- function(eventDataFrame, identityColumns, samples)
 {
   mapMutID <- unique(eventDataFrame[,identityColumns])
   rownames(mapMutID) <- 1:nrow(mapMutID)
   mapMutID$mutID <- 1:nrow(mapMutID)
   eventDataFrame <- merge(eventDataFrame,mapMutID, by=identityColumns)
+  eventDataFrame$freq <- sapply(eventDataFrame$mutID, function(i) {sum(eventDataFrame$mutID == i)})/length(samples)
   return(eventDataFrame)
 }
 
@@ -123,11 +124,13 @@ computeClonalityScores <- function(pairs, eventMatrix, eventExpectation, scoreFu
 #' @export
 computeSharedMutations <- function(pairs, eventDataFrame, identityColumns)
 {
-  clonalityScores <- foreach(i = 1:nrow(pairs), .combine = rbind, .inorder=TRUE, .init=data.frame()) %dopar%
+  sharedMutations  <- foreach(i = 1:nrow(pairs), .combine = rbind, .inorder=TRUE, .init=data.frame()) %dopar%
   {
-    data <- merge(eventDataFrame[eventDataFrame$SampleID== pairs[i, 1], ], eventDataFrame[eventDataFrame$SampleID== pairs[i, 2], ], by = identityColumns)
+    data <- merge(eventDataFrame[eventDataFrame$SampleID== pairs[i, 1], ], eventDataFrame[eventDataFrame$SampleID== pairs[i, 2], ], by = c(identityColumns, "mutID", "freq"))
   }
-  return(clonalityScores)
+  colnames(sharedMutations)[colnames(sharedMutations)=="SampleID.x"] <- "sample1"
+  colnames(sharedMutations)[colnames(sharedMutations)=="SampleID.y"] <- "sample2"
+  return(sharedMutations)
 }    
 
 
@@ -179,7 +182,7 @@ clonality <- function(pairs, eventDataFrame, identityColumns, samples, ditanceTo
       print("Clustered mutations and made cluster as identityColumns instead of pos")
     }
   }
-  eventDataFrame <- addMutIDtoTableAndGetMappingMutIDtoMut(eventDataFrame, identityColumns)
+  eventDataFrame <- addMutIDtoTableAndGetMappingMutIDtoMut(eventDataFrame, identityColumns, samples)
   print("Added mutations IDs to the mutation data.frame")
   eventMatrix <- eventDataFrameToMatrix(pairs, eventDataFrame, identityColumns, samples)
   print("Made mutation matrix")
@@ -188,5 +191,7 @@ clonality <- function(pairs, eventDataFrame, identityColumns, samples, ditanceTo
   referenceScores <- testClonalityScores(pairs, eventMatrix, eventExpectation, scoreFun=scoreClonality) 
   clonalityScores <- computeClonalityScores(pairs, eventMatrix, eventExpectation, scoreFun=scoreClonality)
   clonalityScores$p.value <- sapply(clonalityScores$score, function(s) {mean(s <= c(referenceScores$score,s))} )
-  return(clonalityScores)
+  sharedMutations <- computeSharedMutations(pairs, eventDataFrame, identityColumns)
+  sharedMutations <- merge(sharedMutations, clonalityScores[, c("sample1", "sample2", "p.value")], by=c("sample1", "sample2"))
+  return(list(clonalityScores, sharedMutations))
 }
