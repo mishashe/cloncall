@@ -52,7 +52,6 @@ addMutIDtoTableAndGetMappingMutIDtoMut <- function(eventDataFrame, identityColum
 #' @export
 eventDataFrameToMatrix <- function(pairs, eventDataFrame, identityColumns, samples=NULL)
 {
-  eventDataFrame <- addMutIDtoTableAndGetMappingMutIDtoMut(eventDataFrame, identityColumns)
   if (is.null(samples))
   {
     samples <- unique(c(pairs[, 1], pair[, 2]))
