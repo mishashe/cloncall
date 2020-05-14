@@ -69,7 +69,7 @@ eventDataFrameToMatrix <- function(pairs, eventDataFrame, identityColumns, sampl
   
   for (i in 1:nrow(eventDataFrame)) 
   {
-    eventMatrix[eventDataFrame$SampleID[i],eventDataFrame$mutID[i]] <- 1
+    eventMatrix[eventDataFrame$SampleID[i], eventDataFrame$mutID[i]] <- 1
   }
   return(eventMatrix)
 }
@@ -184,6 +184,7 @@ clonality <- function(pairs, eventDataFrame, identityColumns, samples, ditanceTo
       identityColumns[identityColumns=="pos"] <- "cluster"
     }
   }
+  eventDataFrame <-addMutIDtoTableAndGetMappingMutIDtoMut(eventDataFrame, identityColumns)
   eventMatrix <- eventDataFrameToMatrix(pairs, eventDataFrame, identityColumns, samples)
   eventExpectation <- makeEventExpectation(eventMatrix)
   referenceScores <- testClonalityScores(pairs, eventMatrix, eventExpectation, scoreFun=scoreClonality) 
