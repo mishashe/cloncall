@@ -36,15 +36,9 @@ clusterCloseMutations <- function(eventDataFrame, identityColumns, ditanceTolera
 addMutIDtoTableAndGetMappingMutIDtoMut <- function(eventDataFrame, identityColumns)
 {
   mapMutID <- unique(eventDataFrame[,identityColumns])
-  
   rownames(mapMutID) <- 1:nrow(mapMutID)
-  eventDataFrame$mutID <- 0
-  
-  for (i in 1:nrow(mapMutID))
-  {
-    Ind <- sapply(1:nrow(eventDataFrame),function(j){all(mapMutID[i,] == eventDataFrame[j, identityColumns])})
-    eventDataFrame$mutID[Ind] <- i
-  }
+  mapMutID$mutID <- 1:nrow(mapMutID)
+  eventDataFrame <- merge(eventDataFrame,mapMutID, by=identityColumns)
   return(eventDataFrame)
 }
 
@@ -111,7 +105,7 @@ scoreClonality <- function(events1, events2, eventExpectation1, eventExpectation
 #' @export
 computeClonalityScores <- function(pairs, eventMatrix, eventExpectation, scoreFun=scoreClonality)
 {
-  clonalityScores <- foreach(i = 1:nrow(pairs), .combine = rbind, .inorder=TRUE, .init=data.frame()) %do%
+  clonalityScores <- foreach(i = 1:nrow(pairs), .combine = rbind, .inorder=TRUE, .init=data.frame()) %dopar%
   {
     cbind(pairs[i, ], scoreFun(which(eventMatrix[pairs[i, 1], ] == 1), which(eventMatrix[pairs[i, 2], ] == 1), eventExpectation[pairs[i, 1], ], eventExpectation[pairs[i, 2], ]) )
   }
@@ -130,7 +124,7 @@ computeClonalityScores <- function(pairs, eventMatrix, eventExpectation, scoreFu
 #' @export
 computeSharedMutations <- function(pairs, eventDataFrame, identityColumns)
 {
-  clonalityScores <- foreach(i = 1:nrow(pairs), .combine = rbind, .inorder=TRUE, .init=data.frame()) %do%
+  clonalityScores <- foreach(i = 1:nrow(pairs), .combine = rbind, .inorder=TRUE, .init=data.frame()) %dopar%
   {
     data <- merge(eventDataFrame[eventDataFrame$SampleID== pairs[i, 1], ], eventDataFrame[eventDataFrame$SampleID== pairs[i, 2], ], by = identityColumns)
   }
@@ -176,17 +170,22 @@ testClonalityScores  <- function(pairs, eventMatrix, eventExpectation, scoreFun=
 #' @export
 clonality <- function(pairs, eventDataFrame, identityColumns, samples, ditanceTolerance=NULL)
 {
+  print(paste0("Start analyzing the data: ", nrow(pairs), " pairs, ", nrow(eventDataFrame), " mutations, ", length(samples), " samples, identytiy columns are ", paste0(identityColumns, collapse=' ')))
   if (!is.null(ditanceTolerance) )
   {
     if (ditanceTolerance > 0)
     {
       eventDataFrame <- clusterCloseMutations(eventDataFrame, identityColumns, ditanceTolerance)
       identityColumns[identityColumns=="pos"] <- "cluster"
+      print("Clustered mutations and made cluster as identityColumns instead of pos")
     }
   }
-  eventDataFrame <-addMutIDtoTableAndGetMappingMutIDtoMut(eventDataFrame, identityColumns)
+  eventDataFrame <- addMutIDtoTableAndGetMappingMutIDtoMut(eventDataFrame, identityColumns)
+  print("Added mutations IDs to the mutation data.frame")
   eventMatrix <- eventDataFrameToMatrix(pairs, eventDataFrame, identityColumns, samples)
+  print("Made mutation matrix")
   eventExpectation <- makeEventExpectation(eventMatrix)
+  print("Made mutation expectation matrix (using DISCOVER)")
   referenceScores <- testClonalityScores(pairs, eventMatrix, eventExpectation, scoreFun=scoreClonality) 
   clonalityScores <- computeClonalityScores(pairs, eventMatrix, eventExpectation, scoreFun=scoreClonality)
   clonalityScores$p.value <- sapply(clonalityScores$score, function(s) {mean(s <= c(referenceScores$score,s))} )
