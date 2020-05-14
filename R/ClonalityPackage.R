@@ -5,7 +5,7 @@
 #'   identyColumns will be grouped together.
 #' @param ditanceTolerance Distance tolerance
 #' @export
-clusterCloseMutations <- function(eventDataFrame, identityColumns, ditanceTolerance)
+clusterCloseMutations <- function(eventDataFrame, identityColumns, distanceTolerance)
 {
   events <- unique(sapply(1:nrow(eventDataFrame),function(i){paste(eventDataFrame[i,identityColumns[identityColumns!="pos"]], collapse="_")}))
   coarseGrainedTable <- foreach (event = events, .combine = rbind, .init=data.frame(),.errorhandling = c("stop", "remove", "pass")[1], .inorder=FALSE) %dopar%
@@ -20,7 +20,7 @@ clusterCloseMutations <- function(eventDataFrame, identityColumns, ditanceTolera
     {
       D <- dist(eventDataFrame_sub[,"pos"], method = "manhattan")
       clusters <- hclust(D, method="complete")
-      eventDataFrame_sub$cluster <- cutree(clusters, h = gap) 
+      eventDataFrame_sub$cluster <- cutree(clusters, h = distanceTolerance) 
       return(eventDataFrame_sub)
     }
   }
@@ -170,14 +170,14 @@ testClonalityScores  <- function(pairs, eventMatrix, eventExpectation, scoreFun=
 #' @return pairs with extra columns scorei, number of shared breaks and p-value
 #'
 #' @export
-clonality <- function(pairs, eventDataFrame, identityColumns, samples, ditanceTolerance=NULL)
+clonality <- function(pairs, eventDataFrame, identityColumns, samples, distanceTolerance=NULL)
 {
   print(paste0("Start analyzing the data: ", nrow(pairs), " pairs, ", nrow(eventDataFrame), " mutations, ", length(samples), " samples, identytiy columns are ", paste0(identityColumns, collapse=' ')))
-  if (!is.null(ditanceTolerance) )
+  if (!is.null(distanceTolerance) )
   {
-    if (ditanceTolerance > 0)
+    if (distanceTolerance > 0)
     {
-      eventDataFrame <- clusterCloseMutations(eventDataFrame, identityColumns, ditanceTolerance)
+      eventDataFrame <- clusterCloseMutations(eventDataFrame, identityColumns, distanceTolerance)
       identityColumns[identityColumns=="pos"] <- "cluster"
       print("Clustered mutations and made cluster as identityColumns instead of pos")
     }
